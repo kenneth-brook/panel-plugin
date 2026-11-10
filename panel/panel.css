@@ -1,0 +1,19 @@
+:root { color-scheme: light; font: 1rem/1.5 system-ui, sans-serif; color: #182635; background: #f3f6f9; }
+body { margin: 0; }
+header, main { padding: 1rem clamp(1rem, 4vw, 3rem); }
+header { background: #17334d; color: white; }
+h1, h2 { line-height: 1.2; }
+header a { color: white; }
+nav { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.columns { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr); gap: 1rem; }
+aside, section { padding: 1rem; background: white; border: 1px solid #c3d0db; border-radius: .4rem; }
+label { display: grid; gap: .25rem; margin-block: .75rem; }
+.check { display: flex; }
+input, textarea, select, button { font: inherit; }
+input, textarea, select { min-width: 0; padding: .4rem; }
+button { padding: .35rem .65rem; cursor: pointer; }
+fieldset { min-width: 0; }
+[data-stops] li { margin-bottom: .75rem; }
+.error { color: #922128; font-weight: 600; }
+[aria-current="page"] { font-weight: 700; }
+@media (max-width: 42rem) { .columns { grid-template-columns: 1fr; } }
