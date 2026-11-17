@@ -19,7 +19,7 @@ function panel_escape($value): string
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-$sections = ['home', 'business', 'itinerary'];
+$sections = ['home', 'business'];
 $section = $_GET['section'] ?? 'home';
 if (!in_array($section, $sections, true)) {
     http_response_code(404);
@@ -40,8 +40,6 @@ $canManage = false;
 $installed = ['business' => false, 'itinerary' => false];
 $records = [];
 $record = [];
-$choices = [];
-$stops = [];
 
 try {
     $db = eventforge_bootstrap_connection();
@@ -89,16 +87,15 @@ try {
         while ($table = $tables->fetch_row()) {
             $present[] = $table[0];
         }
-        $installed['business'] = $modules['business'] && in_array('business_directory_listings', $present, true);
-        $installed['itinerary'] = $modules['itinerary'] && $installed['business']
-            && in_array('trip_forge_itineraries', $present, true)
-            && in_array('trip_forge_itinerary_items', $present, true);
-
         if ($modules['business']) {
             require_once __DIR__ . '/../business/store.php';
+            $installed['business'] = business_schema_ready($db);
         }
         if ($modules['business'] && $modules['itinerary']) {
             require_once __DIR__ . '/../itinerary/store.php';
+            $installed['itinerary'] = $installed['business']
+                && in_array('trip_forge_itinerary_items', $present, true)
+                && itinerary_schema_ready($db);
         }
 
         if ($post && ($_POST['action'] ?? '') === 'install' && $section === 'home') {
@@ -117,7 +114,7 @@ try {
                 http_response_code(503);
                 throw new InvalidArgumentException('Install this module from the panel home first.');
             }
-            $records = $section === 'business' ? business_list($db, false) : itinerary_list($db, false);
+            $records = business_list($db, false);
             if ($id > 0) {
                 $record = array_column($records, null, 'id')[$id] ?? [];
                 if (!$record) {
@@ -125,18 +122,17 @@ try {
                     throw new InvalidArgumentException('Record not found.');
                 }
             }
-            if ($section === 'itinerary') {
-                $choices = itinerary_choices($db);
-                foreach (itinerary_items($db, $id, false) as $stop) {
-                    $value = $stop['type'] . ':' . $stop['id'];
-                    $stops[] = $value;
-                    $choices[$stop['type']][$stop['id']] = $choices[$stop['type']][$stop['id']]
-                        ?? $stop['business']['name'] ?? $stop['event']['title']
-                        ?? 'Unavailable ' . $stop['type'] . ' #' . $stop['id'];
-                }
-            }
             if ($post && ($_POST['action'] ?? '') === 'save') {
-                $saved = $section === 'business' ? business_save($db, $id, $_POST) : itinerary_save($db, $id, $_POST);
+                $input = $_POST;
+                $uploads = business_receive_uploads($input, $_FILES);
+                try {
+                    $saved = business_save($db, $id, $input);
+                } catch (Throwable $e) {
+                    foreach ($uploads as $path) {
+                        unlink($path);
+                    }
+                    throw $e;
+                }
                 header('Location: ' . $panelUrl . '?section=' . $section . '&id=' . $saved . '&saved=1', true, 303);
                 exit;
             }
@@ -148,11 +144,8 @@ try {
     }
     $error = $e->getMessage();
     if (($_POST['action'] ?? '') === 'save') {
-        foreach (['name', 'category', 'description', 'address', 'phone', 'website', 'title', 'is_published'] as $key) {
+        foreach (array_merge(array_keys(business_fields()), ['status', 'sort', 'is_member', 'is_published']) as $key) {
             $record[$key] = is_string($_POST[$key] ?? null) ? $_POST[$key] : '';
-        }
-        if ($section === 'itinerary' && is_array($_POST['stops'] ?? null)) {
-            $stops = array_slice(array_filter($_POST['stops'], 'is_string'), 0, 50);
         }
     }
 } catch (Throwable $e) {
